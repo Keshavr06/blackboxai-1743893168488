@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Car Racing Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 overflow-hidden">
+    <!-- Game Canvas -->
+    <div id="game-container" class="w-full h-full fixed">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-10">
+        <div class="text-center p-8 bg-gray-800 rounded-lg max-w-md">
+            <h1 class="text-4xl font-bold text-white mb-6">3D Car Racer</h1>
+            <button id="start-btn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition">
+                START RACE
+            </button>
+        </div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud" class="fixed top-4 left-4 text-white z-10 hidden">
+        <div class="flex space-x-4">
+            <div class="bg-gray-800 bg-opacity-70 px-4 py-2 rounded">
+                Speed: <span id="speed">0</span> km/h
+            </div>
+            <div class="bg-gray-800 bg-opacity-70 px-4 py-2 rounded">
+                Lap: <span id="lap">1</span>/3
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
