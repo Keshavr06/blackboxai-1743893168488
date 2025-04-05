@@ -1,5 +1,8 @@
 // Game variables
-let scene, camera, renderer, car, track;
+let scene, camera, renderer, car, track, directionalLight;
+let timeOfDay = 0; // 0 = day, 1 = night
+let dayNightCycleSpeed = 0.0005;
+let environmentMeshes = [];
 let speed = 0;
 let maxSpeed = 200;
 let acceleration = 0.2;
@@ -12,7 +15,8 @@ let raceStarted = false;
 function init() {
     // Set up Three.js scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB); // Sky blue
+    scene.background = new THREE.Color(0x87CEEB); // Initial sky blue
+    scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
     
     // Camera setup
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -32,7 +36,13 @@ function init() {
     
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(1, 1, 1);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
     scene.add(directionalLight);
+
+    // Create environment
+    createEnvironment();
     
     // Create track
     createTrack();
@@ -145,11 +155,122 @@ function updateCar() {
     document.getElementById('speed').textContent = Math.abs(Math.round(speed));
 }
 
+function createEnvironment() {
+    // Create trees with LOD
+    const treeTrunkHighGeo = new THREE.CylinderGeometry(0.2, 0.3, 2, 4);
+    const treeLeavesHighGeo = new THREE.SphereGeometry(1.5, 4, 4);
+    const treeTrunkLowGeo = new THREE.CylinderGeometry(0.2, 0.3, 2, 3);
+    const treeLeavesLowGeo = new THREE.SphereGeometry(1.5, 3, 3);
+    
+    const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+    const treeLeavesMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+
+    // Create separate meshes for near and far trees
+    const nearTreeTrunkMesh = new THREE.InstancedMesh(treeTrunkHighGeo, treeTrunkMat, 50);
+    const nearTreeLeavesMesh = new THREE.InstancedMesh(treeLeavesHighGeo, treeLeavesMat, 50);
+    const farTreeTrunkMesh = new THREE.InstancedMesh(treeTrunkLowGeo, treeTrunkMat, 50);
+    const farTreeLeavesMesh = new THREE.InstancedMesh(treeLeavesLowGeo, treeLeavesMat, 50);
+    
+    let nearIndex = 0;
+    let farIndex = 0;
+    const LOD_DISTANCE = 15;
+    
+    for (let i = -20; i <= 20; i += 5) {
+        for (let j = -12; j <= 12; j += 8) {
+            const distance = Math.sqrt(i*i + j*j);
+            const trunkMatrix = new THREE.Matrix4().makeTranslation(i, 1, j);
+            const leavesMatrix = new THREE.Matrix4().makeTranslation(i, 3, j);
+            
+            if (distance < LOD_DISTANCE) {
+                nearTreeTrunkMesh.setMatrixAt(nearIndex, trunkMatrix);
+                nearTreeLeavesMesh.setMatrixAt(nearIndex, leavesMatrix);
+                nearIndex++;
+            } else {
+                farTreeTrunkMesh.setMatrixAt(farIndex, trunkMatrix);
+                farTreeLeavesMesh.setMatrixAt(farIndex, leavesMatrix);
+                farIndex++;
+            }
+        }
+    }
+    
+    scene.add(nearTreeTrunkMesh);
+    scene.add(nearTreeLeavesMesh);
+    scene.add(farTreeTrunkMesh);
+    scene.add(farTreeLeavesMesh);
+
+    // Optimize shadows (using the existing directionalLight reference)
+    if (typeof directionalLight !== 'undefined') {
+        directionalLight.shadow.mapSize.width = 512;
+        directionalLight.shadow.mapSize.height = 512;
+        directionalLight.shadow.camera.near = 1;
+        directionalLight.shadow.camera.far = 50;
+    } else {
+        console.warn('Directional light not found for shadow optimization');
+    }
+
+    // Create simple buildings
+    const buildingGeo = new THREE.BoxGeometry(3, 5, 3);
+    const buildingMat = new THREE.MeshStandardMaterial({ color: 0x808080 });
+    
+    for (let i = -22; i <= 22; i += 8) {
+        const building = new THREE.Mesh(buildingGeo, buildingMat);
+        building.position.set(i, 2.5, 18);
+        scene.add(building);
+        environmentMeshes.push(building);
+    }
+}
+
+function updateDayNightCycle() {
+    timeOfDay = (timeOfDay + dayNightCycleSpeed) % 1;
+    
+    // Interpolate between day and night colors
+    const skyColor = new THREE.Color();
+    skyColor.lerpColors(
+        new THREE.Color(0x87CEEB), // Day
+        new THREE.Color(0x000814), // Night
+        timeOfDay
+    );
+    
+    scene.background.copy(skyColor);
+    scene.fog.color.copy(skyColor);
+    
+    // Adjust lighting
+    const lightIntensity = 1 - (timeOfDay * 0.8);
+    const lightColor = new THREE.Color();
+    lightColor.lerpColors(
+        new THREE.Color(0xffffff), // Day
+        new THREE.Color(0xFFA500), // Night (warmer tone)
+        timeOfDay
+    );
+    
+    scene.children.forEach(child => {
+        if (child instanceof THREE.DirectionalLight) {
+            child.intensity = lightIntensity;
+            child.color.copy(lightColor);
+        }
+    });
+}
+
 function animate() {
     requestAnimationFrame(animate);
     updateCar();
+    updateDayNightCycle();
     renderer.render(scene, camera);
+}
+
+// Handle WebGL context loss
+function setupContextLossHandling() {
+    renderer.domElement.addEventListener('webglcontextlost', (event) => {
+        event.preventDefault();
+        console.warn('WebGL context lost. Attempting to recover...');
+        setTimeout(init, 1000);
+    }, false);
+
+    renderer.domElement.addEventListener('webglcontextrestored', () => {
+        console.log('WebGL context restored');
+    }, false);
 }
 
 // Start the game
 init();
+setupContextLossHandling();
